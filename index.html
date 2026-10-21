@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<title>Suora</title>
+<style>
+body{
+    font-family:Arial,sans-serif;
+    background:#ececec;
+    text-align:center;
+}
+
+canvas{
+    background:#fff;
+    border:3px solid #333;
+}
+
+input{
+    width:90px;
+    font-size:18px;
+}
+
+button{
+    font-size:18px;
+    margin:4px;
+}
+
+#task{
+    font-size:22px;
+    font-weight:bold;
+    margin:8px;
+}
+
+#msg{
+    height:30px;
+    font-weight:bold;
+}
+
+.footer{
+    margin-top:18px;
+    font-size:11px;
+    color:#666;
+    line-height:1.4;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Suora</h1>
+
+<div id="task"></div>
+<div id="coords"></div>
+
+<canvas id="cv" width="900" height="520"></canvas>
+
+<br><br>
+
+<span id="ask"></span>
+<input id="ans" type="number" step="0.5">
+
+<button onclick="shoot()">Laukaus</button>
+<button onclick="newLevel()">Uusi tehtävä</button>
+
+<div id="msg"></div>
+
+<div class="footer">
+Suora · Konsepti, pedagoginen suunnittelu ja toteutus:
+Eero Nurmi © 2026 · Lisätietoa lähdekoodissa ·
+Toteutettu tekoälyavusteisesti käyttäen Microsoft Copilotia.
+</div>
+
+<script>
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+const ox = 80;
+const oy = 260;
+const s = 35;
+
+let level = 1;
+let target = {};
+let mode;
+let k;
+let b;
+let ball = null;
+let anim = false;
+
+const vals = [-2,-1.5,-1,-0.5,0.5,1,1.5,2];
+const ints = [-4,-3,-2,-1,0,1,2,3,4];
+
+const rand = a => a[Math.floor(Math.random()*a.length)];
+
+function visibleY(y){
+    return y >= -5 && y <= 5;
+}
+
+function newLevel(){
+
+    do{
+
+        mode = Math.random() < 0.5 ? "k" : "b";
+
+        target.x = rand([2,3,4,5,6,7,8]);
+
+        k = rand(vals);
+        b = rand(ints);
+
+        target.y = k * target.x + b;
+
+    } while(!visibleY(target.y));
+
+    if(mode === "k"){
+        document.getElementById("task").textContent =
+            `Taso ${level}: y = kx + ${b}`;
+        document.getElementById("ask").textContent = "k =";
+    }
+    else{
+        document.getElementById("task").textContent =
+            `Taso ${level}: y = ${k}x + b`;
+        document.getElementById("ask").textContent = "b =";
+    }
+
+    document.getElementById("coords").textContent =
+        `Reikä: (${target.x}, ${target.y})`;
+
+    document.getElementById("ans").value = "";
+
+    document.getElementById("msg").textContent = "";
+
+    ball = null;
+
+    draw();
+}
+
+function draw(){
+
+    ctx.clearRect(0,0,900,520);
+
+    ctx.strokeStyle = "#ddd";
+
+    for(let x=0;x<=20;x++){
+
+        ctx.beginPath();
+        ctx.moveTo(ox + x*s,20);
+        ctx.lineTo(ox + x*s,500);
+        ctx.stroke();
+
+        if(x<20){
+            ctx.fillText(x,ox+x*s-3,oy+18);
+        }
+    }
+
+    for(let y=-5;y<=5;y++){
+
+        ctx.beginPath();
+        ctx.moveTo(50,oy-y*s);
+        ctx.lineTo(850,oy-y*s);
+        ctx.stroke();
+
+        ctx.fillText(y,28,oy-y*s+4);
+    }
+
+    ctx.strokeStyle = "black";
+
+    ctx.beginPath();
+    ctx.moveTo(ox,20);
+    ctx.lineTo(ox,500);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(ox,oy);
+    ctx.lineTo(850,oy);
+    ctx.stroke();
+
+    const tx = ox + target.x*s;
+    const ty = oy - target.y*s;
+
+    ctx.fillStyle = "black";
+    ctx.beginPath();
+    ctx.arc(tx,ty,12,0,Math.PI*2);
+    ctx.fill();
+
+    if(ball){
+
+        ctx.strokeStyle = "red";
+        ctx.beginPath();
+        ctx.moveTo(ox,ball.startY);
+        ctx.lineTo(ball.x,ball.y);
+        ctx.stroke();
+
+        ctx.fillStyle = "red";
+        ctx.beginPath();
+        ctx.arc(ball.x,ball.y,8,0,Math.PI*2);
+        ctx.fill();
+    }
+}
+
+function shoot(){
+
+    if(anim) return;
+
+    const val =
+        parseFloat(document.getElementById("ans").value);
+
+    if(Number.isNaN(val)) return;
+
+    let kk = mode==="k" ? val : k;
+    let bb = mode==="b" ? val : b;
+
+    ball = {
+        x: ox,
+        y: oy - bb*s,
+        startY: oy - bb*s,
+        k: kk,
+        b: bb
+    };
+
+    anim = true;
+
+    const id = setInterval(()=>{
+
+        ball.x += 3;
+
+        let gx = (ball.x - ox)/s;
+
+        ball.y =
+            oy - (ball.k*gx + ball.b)*s;
+
+        draw();
+
+        const tx = ox + target.x*s;
+        const ty = oy - target.y*s;
+
+        if(Math.hypot(
+            ball.x-tx,
+            ball.y-ty
+        ) < 14){
+
+            clearInterval(id);
+
+            anim = false;
+
+            document.getElementById("msg").textContent =
+                "JA SIINÄ SE ON!";
+
+            level++;
+
+            setTimeout(newLevel,1000);
+        }
+
+        if(
+            ball.x > 900 ||
+            ball.y < 0 ||
+            ball.y > 520
+        ){
+
+            clearInterval(id);
+
+            anim = false;
+
+            document.getElementById("msg").textContent =
+                "Ratkaisua rakennetaan edelleen.";
+        }
+
+    },16);
+}
+
+newLevel();
+
+</script>
+
+</body>
+</html>
